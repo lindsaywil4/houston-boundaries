@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Greater Houston Boundaries Map</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    :root {
+      --sidebar-width: 340px;
+      --bg: #fafafa;
+      --panel: #ffffff;
+      --text: #222;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --hover: #f3f4f6;
+      --accent: #2563eb;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); }
+
+    #app { display: flex; height: 100vh; }
+
+    #sidebar {
+      width: var(--sidebar-width);
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    #sidebar h1 {
+      font-size: 18px;
+      margin: 0 0 4px 0;
+    }
+    #sidebar .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .layer-group {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .layer-group:last-child { border-bottom: none; }
+
+    .group-heading {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .layer-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      user-select: none;
+    }
+
+    .expand-btn {
+      width: 16px;
+      height: 16px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 9px;
+      color: var(--muted);
+      padding: 0;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .expand-btn:hover { color: var(--text); }
+    .expand-btn.invisible { visibility: hidden; }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.2);
+    }
+    .swatch.small { width: 10px; height: 10px; }
+
+    .layer-label {
+      font-size: 14px;
+      flex: 1;
+      cursor: pointer;
+    }
+
+    .layer-status {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .layer-status.error { color: #dc2626; }
+    .layer-status.ok { color: #059669; }
+
+    input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .sublist {
+      margin: 4px 0 8px 24px;
+      padding: 6px 0 6px 10px;
+      border-left: 2px solid var(--border);
+    }
+    .sublist[hidden] { display: none; }
+
+    .sublist-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .sublist-controls .search {
+      flex: 1;
+      padding: 3px 6px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-size: 11px;
+      font-family: inherit;
+      background: var(--bg);
+    }
+    .sublist-controls a {
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 11px;
+    }
+    .sublist-controls a:hover { text-decoration: underline; }
+
+    .feature-list {
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .feature-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 4px;
+      font-size: 12px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .feature-row:hover { background: var(--hover); }
+    .feature-row.hidden { display: none; }
+    .feature-row input[type="checkbox"] {
+      width: 13px;
+      height: 13px;
+    }
+    .feature-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .focus-btn {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      color: var(--muted);
+      padding: 0 4px;
+      font-size: 11px;
+      opacity: 0;
+      transition: opacity 0.12s;
+    }
+    .feature-row:hover .focus-btn { opacity: 1; }
+    .focus-btn:hover { color: var(--accent); }
+
+    #map {
+      flex: 1;
+      height: 100%;
+    }
+
+    .info-popup {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .info-popup .title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .footer-note {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 20px;
+      line-height: 1.5;
+    }
+    .footer-note code {
+      background: var(--hover);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <h1>Greater Houston Boundaries</h1>
+      <div class="subtitle">Toggle layers — click ▶ to expand and toggle individual features</div>
+      <div id="layer-controls"></div>
+
+      <div class="footer-note">
+        <strong>Tip.</strong> Click the ▶ next to a layer to drill into individual features. Use the search box and "all" / "none" links inside each sublist for bulk control. Hover a feature row and click ↗ to zoom to it.
+      </div>
+    </aside>
+    <div id="map"></div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    /* ============================================================
+       LAYER CONFIGURATION
+       ------------------------------------------------------------
+       Each layer is a self-contained object. To add a new layer
+       (e.g. civic clubs), copy any block, give it a unique `id`,
+       point `url` at a GeoJSON file (local path or remote URL),
+       and pick a color.
+
+       URLs below have been verified live (May 2026) against the
+       public ArcGIS REST services for City of Houston and Harris
+       County. ArcGIS REST services support GeoJSON output via
+       `?f=geojson&where=1=1&outFields=*`.
+
+       Org IDs:
+         - City of Houston (COHGIS):  NummVBqZSIJKUeVR
+         - Harris County GIS:         su8ic9KbA7PYVxPS
+
+       If a layer ever stops loading, find the current URL at:
+         - City of Houston:    https://houston-mycity.opendata.arcgis.com/
+         - Harris County:      https://geo-harriscounty.opendata.arcgis.com/
+
+       Per-layer options:
+         - subToggle:  if true, the parent shows an expand arrow and
+                       each individual feature gets its own checkbox.
+         - getLabel:   returns a short label for one feature, used in
+                       the sublist (and for sorting).
+       ============================================================ */
+
+    const LAYERS = [
+      {
+        id: "harris-county",
+        name: "Harris County Boundary",
+        url: "https://services.arcgis.com/su8ic9KbA7PYVxPS/arcgis/rest/services/Harris_County_Boundary/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson",
+        color: "#111827",
+        style: { color: "#111827", weight: 3, fillOpacity: 0, dashArray: "6 4" },
+        defaultOn: true,
+        subToggle: false,
+        getLabel: () => "Harris County",
+        popup: () => `<div class="title">Harris County</div>`
+      },
+      {
+        id: "precincts",
+        name: "Commissioner Precincts",
+        url: "https://services.arcgis.com/su8ic9KbA7PYVxPS/arcgis/rest/services/Harris_County_Commissioner_Precincts/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson",
+        color: "#7c3aed",
+        style: { color: "#7c3aed", weight: 2, fillColor: "#7c3aed", fillOpacity: 0.08 },
+        defaultOn: false,
+        subToggle: true,
+        getLabel: (props) => {
+          const num = props.PRECINCT || props.Precinct || props.precinct || props.NAME || "?";
+          return `Precinct ${num}`;
+        },
+        popup: (props) => {
+          const num = props.PRECINCT || props.Precinct || props.precinct || props.NAME || "—";
+          return `<div class="title">Precinct ${num}</div>`;
+        }
+      },
+      {
+        id: "city-houston",
+        name: "City of Houston Boundary",
+        // 750 annexation polygons — per-feature toggle disabled (not useful).
+        url: "https://services.arcgis.com/NummVBqZSIJKUeVR/arcgis/rest/services/COH_CITY_LIMITS/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson",
+        color: "#0ea5e9",
+        style: { color: "#0ea5e9", weight: 1, fillOpacity: 0 },
+        defaultOn: true,
+        subToggle: false,
+        getLabel: () => "City of Houston",
+        popup: () => `<div class="title">City of Houston</div>`
+      },
+      {
+        id: "council-districts",
+        name: "Houston Council Districts",
+        url: "https://services.arcgis.com/NummVBqZSIJKUeVR/arcgis/rest/services/COH_CITY_COUNCIL_DISTRICTS_2024/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson",
+        color: "#2563eb",
+        style: { color: "#2563eb", weight: 1.5, fillColor: "#2563eb", fillOpacity: 0.1 },
+        defaultOn: false,
+        subToggle: true,
+        getLabel: (props) => {
+          const d = props.DISTRICT || props.District || props.NAME || "?";
+          return `District ${d}`;
+        },
+        popup: (props) => {
+          const d = props.DISTRICT || props.District || props.NAME || "—";
+          return `<div class="title">Council District ${d}</div>`;
+        }
+      },
+      {
+        id: "super-neighborhoods",
+        name: "Super Neighborhoods",
+        url: "https://services.arcgis.com/NummVBqZSIJKUeVR/arcgis/rest/services/COH_SUPER_NEIGHBORHOODS/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson",
+        color: "#16a34a",
+        style: { color: "#16a34a", weight: 1, fillColor: "#16a34a", fillOpacity: 0.1 },
+        defaultOn: false,
+        subToggle: true,
+        getLabel: (props) => props.SNBNAME || props.NAME || props.Name || "Super Neighborhood",
+        popup: (props) => {
+          const name = props.SNBNAME || props.NAME || props.Name || "Super Neighborhood";
+          const id = props.SNB_NUM || props.SNB || "";
+          return `<div class="title">${name}</div>${id ? `<div>SN #${id}</div>` : ""}`;
+        }
+      },
+      {
+        id: "tirz",
+        name: "TIRZ Boundaries",
+        url: "https://services.arcgis.com/NummVBqZSIJKUeVR/arcgis/rest/services/COH_TIRZ_2024/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson",
+        color: "#ea580c",
+        style: { color: "#ea580c", weight: 1.5, fillColor: "#ea580c", fillOpacity: 0.15 },
+        defaultOn: false,
+        subToggle: true,
+        getLabel: (props) => {
+          const name = props.NAME || props.Name || props.TIRZ_NAME || "TIRZ";
+          const num = props.TIRZ || props.NUMBER || "";
+          return num ? `${name} (#${num})` : name;
+        },
+        popup: (props) => {
+          const name = props.NAME || props.Name || props.TIRZ_NAME || "TIRZ";
+          const num = props.TIRZ || props.NUMBER || "";
+          return `<div class="title">${name}</div>${num ? `<div>TIRZ #${num}</div>` : ""}`;
+        }
+      },
+      {
+        id: "management-districts",
+        name: "Management Districts",
+        // 75 features. NOTE: this is a "view" service — layer is /4, not /0.
+        url: "https://services.arcgis.com/NummVBqZSIJKUeVR/arcgis/rest/services/COH_Management_Districts_view/FeatureServer/4/query?where=1%3D1&outFields=*&f=geojson",
+        color: "#db2777",
+        style: { color: "#db2777", weight: 1.5, fillColor: "#db2777", fillOpacity: 0.12 },
+        defaultOn: false,
+        subToggle: true,
+        getLabel: (props) => props.NAME || props.Name || props.MD_NAME || "Management District",
+        popup: (props) => {
+          const name = props.NAME || props.Name || props.MD_NAME || "Management District";
+          return `<div class="title">${name}</div>`;
+        }
+      }
+
+      /* ----------------------------------------------------------
+         CIVIC CLUBS SLOT — ready to enable when you have data.
+         Drop a GeoJSON file in your repo (e.g. data/civic-clubs.geojson)
+         and uncomment this block.
+
+      ,{
+        id: "civic-clubs",
+        name: "Civic Clubs",
+        url: "data/civic-clubs.geojson",
+        color: "#facc15",
+        style: { color: "#a16207", weight: 1, fillColor: "#facc15", fillOpacity: 0.2 },
+        defaultOn: false,
+        subToggle: true,
+        getLabel: (props) => props.NAME || "Civic Club",
+        popup: (props) => `<div class="title">${props.NAME || "Civic Club"}</div>`
+      }
+      ---------------------------------------------------------- */
+    ];
+
+    /* ============================================================
+       MAP INITIALIZATION
+       ============================================================ */
+
+    const map = L.map("map", {
+      center: [29.76, -95.37],
+      zoom: 10,
+      zoomControl: true
+    });
+
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 19
+      }
+    ).addTo(map);
+
+    /* ============================================================
+       LAYER LOADING + UI
+       ------------------------------------------------------------
+       Data model:
+         layerState[id] = {
+           config,
+           geoJSON,        // L.GeoJSON containing currently-visible features
+           features: [     // every feature, sorted by label
+             { label, lyr, props, checkbox, row }
+           ]
+         }
+
+       Parent checkbox controls whether the L.GeoJSON is on the map.
+       Sub-checkboxes control which features are inside the L.GeoJSON
+       (added/removed via geoJSON.addLayer/removeLayer). Parent goes
+       indeterminate when partial.
+       ============================================================ */
+
+    const controlsEl = document.getElementById("layer-controls");
+    const layerState = {};
+    const statusEls = {};
+    const parentCheckboxes = {};
+    const sublistContainers = {};
+
+    function buildLayerRow(cfg) {
+      const wrap = document.createElement("div");
+
+      const row = document.createElement("div");
+      row.className = "layer-row";
+
+      const expandBtn = document.createElement("button");
+      expandBtn.type = "button";
+      expandBtn.className = "expand-btn" + (cfg.subToggle ? "" : " invisible");
+      expandBtn.textContent = "▶";
+      expandBtn.setAttribute("aria-label", "Expand layer features");
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = !!cfg.defaultOn;
+      checkbox.addEventListener("change", (e) => {
+        e.stopPropagation();
+        onParentToggle(cfg.id, checkbox.checked);
+      });
+      parentCheckboxes[cfg.id] = checkbox;
+
+      const swatch = document.createElement("span");
+      swatch.className = "swatch";
+      swatch.style.background = cfg.color;
+
+      const label = document.createElement("span");
+      label.className = "layer-label";
+      label.textContent = cfg.name;
+
+      const status = document.createElement("span");
+      status.className = "layer-status";
+      status.textContent = "loading…";
+      statusEls[cfg.id] = status;
+
+      row.appendChild(expandBtn);
+      row.appendChild(checkbox);
+      row.appendChild(swatch);
+      row.appendChild(label);
+      row.appendChild(status);
+
+      const sublist = document.createElement("div");
+      sublist.className = "sublist";
+      sublist.hidden = true;
+      sublistContainers[cfg.id] = sublist;
+
+      const expandHandler = (e) => {
+        e.stopPropagation();
+        if (!cfg.subToggle) return;
+        sublist.hidden = !sublist.hidden;
+        expandBtn.textContent = sublist.hidden ? "▶" : "▼";
+      };
+      expandBtn.addEventListener("click", expandHandler);
+      label.addEventListener("click", (e) => {
+        if (cfg.subToggle) {
+          e.preventDefault();
+          expandHandler(e);
+        }
+      });
+
+      wrap.appendChild(row);
+      wrap.appendChild(sublist);
+      return wrap;
+    }
+
+    function onParentToggle(layerId, on) {
+      const state = layerState[layerId];
+      if (!state) return;
+
+      if (state.config.subToggle && state.features.length > 0) {
+        state.features.forEach((feat) => {
+          if (feat.checkbox && feat.checkbox.checked !== on) {
+            feat.checkbox.checked = on;
+            applyFeatureVisibility(layerId, feat, on);
+          }
+        });
+      }
+      setLayerOnMap(layerId, on);
+      const cb = parentCheckboxes[layerId];
+      if (cb) cb.indeterminate = false;
+    }
+
+    function applyFeatureVisibility(layerId, feat, on) {
+      const state = layerState[layerId];
+      if (!state || !state.geoJSON || !feat.lyr) return;
+      if (on) {
+        if (!state.geoJSON.hasLayer(feat.lyr)) state.geoJSON.addLayer(feat.lyr);
+      } else {
+        if (state.geoJSON.hasLayer(feat.lyr)) state.geoJSON.removeLayer(feat.lyr);
+      }
+    }
+
+    function setLayerOnMap(layerId, on) {
+      const state = layerState[layerId];
+      if (!state || !state.geoJSON) return;
+      if (on && !map.hasLayer(state.geoJSON)) map.addLayer(state.geoJSON);
+      if (!on && map.hasLayer(state.geoJSON)) map.removeLayer(state.geoJSON);
+    }
+
+    function recomputeParentCheckbox(layerId) {
+      const state = layerState[layerId];
+      const cb = parentCheckboxes[layerId];
+      if (!state || !cb || !state.config.subToggle) return;
+      const total = state.features.length;
+      const checked = state.features.filter((f) => f.checkbox && f.checkbox.checked).length;
+      if (checked === 0) {
+        cb.checked = false;
+        cb.indeterminate = false;
+        setLayerOnMap(layerId, false);
+      } else if (checked === total) {
+        cb.checked = true;
+        cb.indeterminate = false;
+        setLayerOnMap(layerId, true);
+      } else {
+        cb.checked = true;
+        cb.indeterminate = true;
+        setLayerOnMap(layerId, true);
+      }
+    }
+
+    function buildSublist(layerId) {
+      const state = layerState[layerId];
+      const cfg = state.config;
+      const container = sublistContainers[layerId];
+      container.innerHTML = "";
+
+      const controls = document.createElement("div");
+      controls.className = "sublist-controls";
+
+      const search = document.createElement("input");
+      search.type = "text";
+      search.className = "search";
+      search.placeholder = "filter…";
+
+      const allLink = document.createElement("a");
+      allLink.textContent = "all";
+      allLink.href = "#";
+
+      const noneLink = document.createElement("a");
+      noneLink.textContent = "none";
+      noneLink.href = "#";
+
+      controls.appendChild(search);
+      controls.appendChild(allLink);
+      controls.appendChild(noneLink);
+      container.appendChild(controls);
+
+      const list = document.createElement("div");
+      list.className = "feature-list";
+      container.appendChild(list);
+
+      state.features.forEach((feat) => {
+        const row = document.createElement("label");
+        row.className = "feature-row";
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!cfg.defaultOn;
+        cb.addEventListener("change", (e) => {
+          e.stopPropagation();
+          applyFeatureVisibility(layerId, feat, cb.checked);
+          recomputeParentCheckbox(layerId);
+        });
+        feat.checkbox = cb;
+        feat.row = row;
+
+        const dot = document.createElement("span");
+        dot.className = "swatch small";
+        dot.style.background = cfg.color;
+
+        const lbl = document.createElement("span");
+        lbl.className = "feature-label";
+        lbl.textContent = feat.label;
+        lbl.title = feat.label;
+
+        const focusBtn = document.createElement("button");
+        focusBtn.type = "button";
+        focusBtn.className = "focus-btn";
+        focusBtn.textContent = "↗";
+        focusBtn.title = "Zoom to feature";
+        focusBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (feat.lyr && feat.lyr.getBounds) {
+            map.fitBounds(feat.lyr.getBounds(), { padding: [40, 40] });
+          }
+        });
+
+        row.appendChild(cb);
+        row.appendChild(dot);
+        row.appendChild(lbl);
+        row.appendChild(focusBtn);
+        list.appendChild(row);
+      });
+
+      search.addEventListener("input", () => {
+        const q = search.value.trim().toLowerCase();
+        state.features.forEach((feat) => {
+          const match = !q || feat.label.toLowerCase().includes(q);
+          if (feat.row) feat.row.classList.toggle("hidden", !match);
+        });
+      });
+
+      const setAll = (on) => {
+        state.features.forEach((feat) => {
+          if (feat.checkbox && feat.checkbox.checked !== on) {
+            feat.checkbox.checked = on;
+            applyFeatureVisibility(layerId, feat, on);
+          }
+        });
+        recomputeParentCheckbox(layerId);
+      };
+      allLink.addEventListener("click", (e) => { e.preventDefault(); setAll(true); });
+      noneLink.addEventListener("click", (e) => { e.preventDefault(); setAll(false); });
+    }
+
+    async function loadLayer(cfg) {
+      const geoJSON = L.geoJSON(null, {
+        style: cfg.style,
+        onEachFeature: (feature, lyr) => {
+          lyr.bindPopup(`<div class="info-popup">${cfg.popup(feature.properties || {})}</div>`);
+          lyr.on("mouseover", () => lyr.setStyle({ weight: (cfg.style.weight || 1) + 2 }));
+          lyr.on("mouseout", () => geoJSON.resetStyle(lyr));
+        }
+      });
+
+      layerState[cfg.id] = { config: cfg, geoJSON, features: [] };
+
+      try {
+        const res = await fetch(cfg.url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        geoJSON.addData(data);
+
+        const featureList = [];
+        geoJSON.eachLayer((lyr) => {
+          const props = (lyr.feature && lyr.feature.properties) || {};
+          const label = cfg.getLabel ? cfg.getLabel(props) : `Feature ${featureList.length + 1}`;
+          featureList.push({ label, lyr, props });
+        });
+        featureList.sort((a, b) =>
+          a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" })
+        );
+        layerState[cfg.id].features = featureList;
+
+        const count = featureList.length;
+        statusEls[cfg.id].textContent = `${count} feature${count === 1 ? "" : "s"}`;
+        statusEls[cfg.id].classList.add("ok");
+
+        if (cfg.subToggle && count > 0) {
+          buildSublist(cfg.id);
+          // Sync the GeoJSON contents to whatever the sub-checkboxes
+          // say. Without this, unchecked features still live inside
+          // the layer and would all appear together the moment the
+          // layer goes on the map (e.g. checking one district would
+          // reveal all of them).
+          featureList.forEach((feat) => {
+            if (feat.checkbox && !feat.checkbox.checked) {
+              if (geoJSON.hasLayer(feat.lyr)) geoJSON.removeLayer(feat.lyr);
+            }
+          });
+        }
+
+        if (cfg.defaultOn) map.addLayer(geoJSON);
+      } catch (err) {
+        console.error(`Failed to load ${cfg.name}:`, err);
+        statusEls[cfg.id].textContent = "failed to load";
+        statusEls[cfg.id].classList.add("error");
+        statusEls[cfg.id].title = String(err);
+      }
+    }
+
+    // Group layers visually
+    const groups = [
+      { title: "Harris County", ids: ["harris-county", "precincts"] },
+      { title: "City of Houston", ids: ["city-houston", "council-districts", "super-neighborhoods"] },
+      { title: "Districts & Zones", ids: ["tirz", "management-districts"] }
+    ];
+
+    groups.forEach((group) => {
+      const wrap = document.createElement("div");
+      wrap.className = "layer-group";
+      const heading = document.createElement("div");
+      heading.className = "group-heading";
+      heading.textContent = group.title;
+      wrap.appendChild(heading);
+
+      group.ids.forEach((id) => {
+        const cfg = LAYERS.find((l) => l.id === id);
+        if (!cfg) return;
+        wrap.appendChild(buildLayerRow(cfg));
+      });
+      controlsEl.appendChild(wrap);
+    });
+
+    LAYERS.forEach(loadLayer);
+  </script>
+</body>
+</html>
